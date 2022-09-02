@@ -1,0 +1,31 @@
+﻿@model RbaQuickstart.Models.LoginViewModel 
+<div class="login-page">
+    <div class="lead">
+        <h1>Register</h1>
+    </div>
+
+    <partial name="_ValidationSummary" />
+
+    <div class="row">
+        <div class="col-sm-6">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Register a Local Account</h2>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Register" asp-controller="Account" autocomplete="off" novalidate>
+                        <div class="form-group">
+                            <label asp-for="Username"></label>
+                            <input class="form-control" placeholder="Username" asp-for="Username" autofocus>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Password"></label>
+                            <input type="password" class="form-control" placeholder="Password" asp-for="Password" autocomplete="off">
+                        </div>
+                        <button class="btn btn-primary" name="button" value="Register">Register</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
