@@ -1,26 +1,32 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using RbaQuickstart.Models;
+using Rsk.RiskBasedAuthentication.Enums;
+using Rsk.RiskBasedAuthentication.Services.Interfaces;
 
 namespace RbaQuickstart.Controllers
 {
     public class AccountController : Controller
     {
         private readonly SignInManager<IdentityUser> signInManager;
+        private readonly IRbaAlertService alertService;
 
-        public AccountController(SignInManager<IdentityUser> signInManager)
+        public AccountController(SignInManager<IdentityUser> signInManager, IRbaAlertService alertService)
         {
             this.signInManager = signInManager ?? throw new ArgumentNullException(nameof(signInManager));
+            this.alertService = alertService ?? throw new ArgumentNullException(nameof(alertService));
         }
 
         [HttpGet]
-        public IActionResult Login(string returnUrl)
+        public async Task<IActionResult> Login()
         {
-            var model = new LoginViewModel()
-            {
-                ReturnUrl = returnUrl
-            };
+            var model = new LoginViewModel();
+
+            var alertLevel = await alertService.GetAlertLevel();
+
+            model.ShowCaptcha = alertLevel >= AlertLevel.High;
 
             return View(model);
         }
@@ -31,6 +37,26 @@ namespace RbaQuickstart.Controllers
             if (!ModelState.IsValid)
             {
                 return View(model);
+            }
+
+            var alertLevel = await alertService.GetAlertLevel();
+
+            if (alertLevel >= AlertLevel.High)
+            {
+                //Verify Captcha
+                if (!Request.Form.ContainsKey("g-recaptcha-response"))
+                {
+                    ModelState.AddModelError("captcha", "Captcha Missing");
+                    return View(model);
+
+                }
+                var captcha = Request.Form["g-recaptcha-response"].ToString();
+
+                if (!await IsCaptchaValid(captcha))
+                {
+                    ModelState.AddModelError("captcha", "Captcha Failed");
+                    return View(model);
+                }
             }
 
             var user = await signInManager.UserManager.FindByNameAsync(model.Username);
@@ -88,6 +114,28 @@ namespace RbaQuickstart.Controllers
             await signInManager.UserManager.AddPasswordAsync(newUser, model.Password);
 
             return Redirect(model.ReturnUrl ?? "/");
+        }
+
+        private async Task<bool> IsCaptchaValid(string captcha)
+        {
+            try
+            {
+                var captchaClient = new HttpClient();
+                captchaClient.BaseAddress = new Uri("https://www.google.com/recaptcha/api/siteverify");
+                var postTask = await captchaClient
+                    .PostAsync($"?secret=API_KEY={captcha}", new StringContent(""));
+
+                var result = await postTask.Content.ReadAsStringAsync();
+
+                var resultObject = JObject.Parse(result);
+                dynamic success = resultObject["success"];
+                return (bool)success;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                return false;
+            }
         }
     }
 }
